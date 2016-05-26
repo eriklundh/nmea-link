@@ -1,3 +1,4 @@
+#
 # Makefile for NMEA-link - https://github.com/jcable/nmea-link
 #
 # Makefile adapted to nmea-link by Julian Cable
@@ -22,15 +23,56 @@
 # STA_SSID ?= 
 # STA_PASS ?= 
 
+# The SOFTAP configuration can be hard-coded here, the minimum parameters to set are AP_SSID && AP_PASS
+# The AP SSID has to be at least 8 characters long, same for AP PASSWORD
+# The AP AUTH MODE can be set to:
+#  0 = AUTH_OPEN, 
+#  1 = AUTH_WEP, 
+#  2 = AUTH_WPA_PSK, 
+#  3 = AUTH_WPA2_PSK, 
+#  4 = AUTH_WPA_WPA2_PSK
+# SSID hidden default 0, ( 0 | 1 ) 
+# Max connections default 4, ( 1 ~ 4 )
+# Beacon interval default 100, ( 100 ~ 60000ms )
+#
+# AP_SSID ?=esp_link_test
+# AP_PASS ?=esp_link_test
+# AP_AUTH_MODE ?=4
+# AP_SSID_HIDDEN ?=0
+# AP_MAX_CONN ?=4
+# AP_BEACON_INTERVAL ?=100
+
+# If CHANGE_TO_STA is set to "yes" the esp-link module will switch to station mode
+# once successfully connected to an access point. Else it will stay in STA+AP mode.
+CHANGE_TO_STA ?= yes
+
+
 # --------------- toolchain configuration ---------------
 
 # Base directory for the compiler. Needs a / at the end.
 # Typically you'll install https://github.com/pfalcon/esp-open-sdk
 XTENSA_TOOLS_ROOT ?= $(abspath ../esp-open-sdk/xtensa-lx106-elf/bin)/
 
-# Base directory of the ESP8266 SDK package, absolute
-# Typically you'll download from Espressif's BBS, http://bbs.espressif.com/viewforum.php?f=5
-SDK_BASE	?= $(abspath ../esp_iot_sdk_v1.5.0)
+# Firmware version 
+# WARNING: if you change this expect to make code adjustments elsewhere, don't expect
+# that esp-link will magically work with a different version of the SDK!!!
+SDK_VERS ?= esp_iot_sdk_v1.5.2
+
+# Try to find the firmware manually extracted, e.g. after downloading from Espressif's BBS,
+# http://bbs.espressif.com/viewforum.php?f=46
+SDK_BASE ?= $(wildcard ../$(SDK_VERS))
+
+# If the firmware isn't there, see whether it got downloaded as part of esp-open-sdk
+ifeq ($(SDK_BASE),)
+SDK_BASE := $(wildcard $(XTENSA_TOOLS_ROOT)/../../$(SDK_VERS))
+endif
+
+# Clean up SDK path
+SDK_BASE := $(abspath $(SDK_BASE))
+$(warning Using SDK from $(SDK_BASE))
+
+# Path to bootloader file
+BOOTFILE	?= $(SDK_BASE/bin/boot_v1.5.bin)
 
 # Esptool.py path and port, only used for 1-time serial flashing
 # Typically you'll use https://github.com/themadinventor/esptool
@@ -66,10 +108,6 @@ LED_SERIAL_PIN      ?= 14
 
 # --------------- nmea-link config options ---------------
 
-# If CHANGE_TO_STA is set to "yes" the NMEA-link module will switch to station mode
-# once successfully connected to an access point. Else it will stay in AP+STA mode.
-
-CHANGE_TO_STA ?= yes
 
 # Optional Modules
 #MODULES ?= mqtt rest syslog
@@ -269,6 +307,30 @@ ifneq ($(strip $(STA_PASS)),)
 CFLAGS		+= -DSTA_PASS="$(STA_PASS)"
 endif
 
+ifneq ($(strip $(AP_SSID)),)
+CFLAGS		+= -DAP_SSID="$(AP_SSID)"
+endif
+
+ifneq ($(strip $(AP_PASS)),)
+CFLAGS		+= -DAP_PASS="$(AP_PASS)"
+endif
+
+ifneq ($(strip $(AP_AUTH_MODE)),)
+CFLAGS		+= -DAP_AUTH_MODE="$(AP_AUTH_MODE)"
+endif
+
+ifneq ($(strip $(AP_SSID_HIDDEN)),)
+CFLAGS		+= -DAP_SSID_HIDDEN="$(AP_SSID_HIDDEN)"
+endif
+
+ifneq ($(strip $(AP_MAX_CONN)),)
+CFLAGS		+= -DAP_MAX_CONN="$(AP_MAX_CONN)"
+endif
+
+ifneq ($(strip $(AP_BEACON_INTERVAL)),)
+CFLAGS		+= -DAP_BEACON_INTERVAL="$(AP_BEACON_INTERVAL)"
+endif
+
 ifeq ("$(GZIP_COMPRESSION)","yes")
 CFLAGS		+= -DGZIP_COMPRESSION
 endif
@@ -347,7 +409,7 @@ baseflash: all
 
 flash: all
 	$(Q) $(ESPTOOL) --port $(ESPPORT) --baud $(ESPBAUD) write_flash -fs $(ET_FS) -ff $(ET_FF) \
-	  0x00000 "$(SDK_BASE)/bin/boot_v1.4(b1).bin" 0x01000 $(FW_BASE)/user1.bin \
+	  0x00000 "$(SDK_BASE)/bin/boot_v1.5.bin" 0x01000 $(FW_BASE)/user1.bin \
 	  $(ET_BLANK) $(SDK_BASE)/bin/blank.bin
 
 tools/$(HTML_COMPRESSOR):
@@ -427,7 +489,7 @@ release: all
 	$(Q) egrep -a 'nmea-link [a-z0-9.]+ - 201' $(FW_BASE)/user1.bin | cut -b 1-80
 	$(Q) egrep -a 'nmea-link [a-z0-9.]+ - 201' $(FW_BASE)/user2.bin | cut -b 1-80
 	$(Q) cp $(FW_BASE)/user1.bin $(FW_BASE)/user2.bin $(SDK_BASE)/bin/blank.bin \
-		   "$(SDK_BASE)/bin/boot_v1.4(b1).bin" wiflash avrflash release/nmea-link-$(BRANCH)
+		   "$(SDK_BASE)/bin/boot_v1.5.bin" wiflash avrflash release/nmea-link-$(BRANCH)
 	$(Q) tar zcf nmea-link-$(BRANCH).tgz -C release nmea-link-$(BRANCH)
 	$(Q) echo "Release file: nmea-link-$(BRANCH).tgz"
 	$(Q) rm -rf release
