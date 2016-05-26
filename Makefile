@@ -1,4 +1,3 @@
-#
 # Makefile for NMEA-link - https://github.com/jcable/nmea-link
 #
 # Makefile adapted to nmea-link by Julian Cable
